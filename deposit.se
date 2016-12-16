@@ -1,0 +1,51 @@
+data players[]:addr
+data n_players
+data N
+data complete
+data deposits[]
+
+extern _: [getWinner:[]:addr]
+data finalTournament:addr
+data T0
+data TFinal
+
+data _initialized
+
+macro assert($x):
+    if not $x: invalid()
+
+event Initialize()
+
+def getPlayer(i:uint256):
+    return(self.players[i]:addr)
+
+def initialize(N, T0, TFinal, finalTournament):
+    assert(not self._initialized)
+    self._initialized = 1
+    self.N = N
+    self.T0 = T0
+    self.TFinal = TFinal
+    self.finalTournament = finalTournament
+
+def deposit():
+    assert(msg.value == 1)
+    assert(self.n_players <= self.N)
+    assert(self.deposits[msg.sender] == 0)
+    assert(block.number <= T0)
+    # T0 is the time by which all deposits must be made
+    self.players[self.n_players] = msg.sender
+    self.n_players += 1
+    self.deposits[msg.sender] = 1
+    if contract.balance >= self.N:
+        self.complete = 1
+        
+def withdraw():
+    if !self.complete: # Abort and refund
+        assert(block.number >= T0)
+        assert(self.deposits[msg.sender] == 1)
+        self.deposits[msg.sender] = 0
+        send(msg.sender, 1) 
+    else:
+        assert(block.number >= TFinal)
+        assert(finaltournament.getWinner() == msg.sender)
+        send(msg.sender, contract.balance)

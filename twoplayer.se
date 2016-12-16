@@ -1,0 +1,101 @@
+data alice:addr
+data bob:addr
+data openings[]:uint256
+data commits[]:uint256
+data left:addr
+data right:addr
+data _initialized
+data T0
+data T1
+data T2
+data bias_n:uint256
+data bias_d:uint256
+extern _: [getWinner:[]:addr]
+extern _1: [getPlayer:[uint256]:addr]
+data isFirstLevel
+data index
+data deposit:addr
+
+macro assert($x):
+    if not $x: invalid()
+
+event Initialize()
+event Commit(player, c:uint256)
+event Open(player:uint256, s:uint256)
+event Winner(x)
+
+def initFirstLevel(deposit, index, T0, T1, T2):
+    assert(not self._initialized)
+    self._initialized = 1
+    # For first-level contracts
+    self.isFirstLevel = 1
+    self.index = index
+    self.deposit = deposit
+    self.T0 = T0
+    self.T1 = T1
+    self.T2 = T2
+    self.bias_n = 1
+    self.bias_d = 2
+    #log(type=Initialize)
+    
+def initLevel(left,right, T0, T2, T2):
+    assert(not self._initialized)
+    self._initialized = 1
+    # For first-level contracts
+    self.left = left
+    self.right = right
+    self.T0 = T0
+    self.T1 = T1
+    self.T2 = T2
+    self.bias_n = 1
+    self.bias_d = 2
+    #log(type=Initialize)
+
+def initialize(alice,bob,T0,T1,T2):
+    assert(not self._initialized)
+    self._initialized = 1
+    # If Alice and Bob are hardcoded
+    self.alice = alice
+    self.bob = bob
+    self.T0 = T0
+    self.T1 = T1
+    self.T2 = T2
+    self.bias_n = 1
+    self.bias_d = 2
+    log(type=Initialize)
+
+def commit(c:uint256):
+    #assert(self.T0 < block.number < self.T1)
+    if self.isFirstLevel:
+        if self.alice == 0: self.alice = self.deposit.getPlayer(2*self.index)
+        if self.bob   == 0: self.bob   = self.deposit.getPlayer(2*self.index+1)
+    else:
+        if self.alice == 0: self.alice = self.left .getWinner()
+        if self.bob   == 0: self.bob   = self.right.getWinner()
+    assert(self.alice == msg.sender or self.bob == msg.sender)
+    self.commits[msg.sender] = c
+    log(type=Commit, msg.sender, c)
+    
+def open(s:uint256):
+    assert(self.T1 < block.number < self.T2)
+    assert(sha3([msg.sender, s], items=2) == self.commits[msg.sender])
+    self.openings[msg.sender] = s
+    log(type=Open, msg.sender, s)
+
+def getWinner():
+    assert(self.T2 < block.number)
+
+    # Timeout T1
+    if self.commits[self.alice] == 0: return(self.bob:uint256)
+    if self.commits[self.bob  ] == 0: return(self.alice:uint256)
+    
+    # Timeout T2
+    if self.openings[self.alice] == 0: return(self.bob:uint256)
+    if self.openings[self.bob  ] == 0: return(self.alice:uint256)
+
+    # Ordinary case
+    x = (self.openings[self.alice] xor self.openings[self.bob])
+    if mod(x, self.bias_d) < self.bias_n:
+         return(self.alice:uint256)
+    else:
+         return(self.bob:uint256)
